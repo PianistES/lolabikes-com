@@ -1,0 +1,53 @@
+name: Publish Lola Bikes Blog
+
+on:
+  # Handmatig triggeren (voor testen)
+  workflow_dispatch:
+
+  # Automatisch: elke twee weken op maandag om 09:00 Spaanse tijd (08:00 UTC in winter, 07:00 in zomer)
+  schedule:
+    - cron: '0 8 1,15 * 1'   # 1e en 15e van de maand, maandag, 09:00 CET
+
+  # Automatisch bij Contentful webhook push
+  repository_dispatch:
+    types: [contentful-publish]
+
+jobs:
+  generate-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Generate blog posts
+        env:
+          ANTHROPIC_API_KEY:    ${{ secrets.ANTHROPIC_API_KEY }}
+          CONTENTFUL_SPACE_ID:  ${{ secrets.CONTENTFUL_SPACE_ID }}
+          CONTENTFUL_CDA_TOKEN: ${{ secrets.CONTENTFUL_CDA_TOKEN }}
+          CONTENTFUL_CMA_TOKEN: ${{ secrets.CONTENTFUL_CMA_TOKEN }}
+        run: |
+          python scripts/generate_blog.py
+
+      - name: Update sitemap
+        run: |
+          python scripts/update_sitemap.py
+
+      - name: Commit and push generated pages
+        run: |
+          git config user.name  "Lola Bikes Bot"
+          git config user.email "hello@lolabikes.com"
+          git add -A
+          git diff --staged --quiet || git commit -m "🚲 Auto-publish blog $(date '+%Y-%m-%d')"
+          git push
+
+      - name: Trigger Netlify deploy
+        env:
+          NETLIFY_BUILD_HOOK: ${{ secrets.NETLIFY_BUILD_HOOK }}
+        run: |
+          curl -X POST "$NETLIFY_BUILD_HOOK"
