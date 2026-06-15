@@ -94,3 +94,8 @@
   for = "/blog/**"
   [headers.values]
     Cache-Control = "public, max-age=3600, stale-while-revalidate=86400"
+
+[[redirects]]
+  from   = "/*"
+  to     = "/index.html"
+  status = 200
